@@ -1,0 +1,95 @@
+# This code below will generate lollipop plot (Supplementary Figure 1a)
+
+rm(list=ls())
+if (!requireNamespace("BiocManager", quietly = TRUE))
+BiocManager::install("maftools")
+library(maftools)
+blood1 <- system.file('extdata', 'bloodtotal.maf.gz', package = 'maftools')
+blood <- read.maf(maf = blood1, useAll = TRUE)
+
+cellline1 <- system.file('extdata', 'celllinetotal.maf.gz', package = 'maftools')
+cellline <- read.maf(maf = cellline1, useAll = TRUE)
+
+tissue1 <- system.file('extdata', 'tissuetotal.maf.gz', package = 'maftools')
+tissue <- read.maf(maf = tissue1, useAll = TRUE)
+
+lollipopPlot(maf = blood, gene= 'TP53', AACol = 'HGVSp', showMutationRate = TRUE, domainLabelSize = 3, defaultYaxis = FALSE)
+lollipopPlot(maf = tissue, gene= 'TP53', AACol = 'HGVSp', showMutationRate = TRUE, domainLabelSize = 3, defaultYaxis = FALSE)
+lollipopPlot(maf = cellline, gene= 'TP53', AACol = 'HGVSp', showMutationRate = TRUE, domainLabelSize = 3, defaultYaxis = FALSE)
+
+#################################################################################################################################
+# This code below will generate waterfall plot (Figure 1a)
+
+rm(list=ls())
+raw<-read.table("panctotalwaterfall_20201209.txt",header=T, sep="\t")
+row.names(raw)<-raw$Name
+raw<-raw[,2:37]
+raw = as.matrix(raw)
+sampleOrder<-read.table("panctotalwaterfall_order_20201209.txt", header=T, sep="\t")
+f.sampleOrder<-as.character(t(sampleOrder))
+v.sampleOrder<-as.vector(f.sampleOrder)
+if (!requireNamespace("BiocManager", quietly = TRUE))
+BiocManager::install("ComplexHeatmap")
+library(ComplexHeatmap)
+oncoPrint(raw, get_type = function(x) strsplit(x, ";")[[1]],
+          alter_fun = list( 
+            background = function(x, y, w, h) grid.rect(x, y, w-unit(0.5, "mm"), h-unit(0.5, "mm"), gp = gpar(fill = "#CCCCCC", col = NA)),
+            missense_variant = function(x, y, w, h) grid.rect(x, y, w*0.9, h*0.8, gp = gpar(fill = "navy", col = NA)),
+            frameshift_variant = function(x, y, w, h) grid.rect(x, y, w*0.9, h*0.4, gp = gpar(fill = "brown2", col = NA)),
+            disruptive_inframe_deletion = function(x, y, w, h) grid.rect(x, y, w*0.9, h*0.5, gp = gpar(fill = "tan2", col = NA)),
+            stop_gained = function(x, y, w, h) grid.rect(x, y, w*0.9, h*0.2, gp = gpar(fill = "lightgreen", col = NA)),
+            splice_donor_variant = function(x, y, w, h) grid.rect(x, y, w*0.9, h*0.4, gp = gpar(fill = "slateblue1", col = NA)),
+            splice_acceptor_variant = function(x, y, w, h) grid.rect(x, y, w*0.9, h*0.3, gp = gpar(fill = "salmon", col = NA)),
+		disruptive_inframe_insertion = function(x, y, w, h) grid.rect(x, y, w*0.9, h*0.1, gp = gpar(fill = "darkorchid1", col = NA)),
+		inframe_deletion = function(x, y, w, h) grid.rect(x, y, w*0.9, h*0.7, gp = gpar(fill = "dodgerblue2", col = NA))
+          ), col = c(missense_variant = "navy", frameshift_variant = "brown2", disruptive_inframe_deletion = "tan2", inframe_deletion = "dodgerblue2",
+                     stop_gained = "lightgreen", splice_donor_variant = "orchid3", splice_acceptor_variant = "salmon", disruptive_inframe_insertion = "darkorchid1"),
+          show_column_names = TRUE, column_order = v.sampleOrder,
+          column_title = "Brain Cancer Mutation Profile", width = unit(25, "cm"), 
+          heatmap_legend_param = list(title = "Alternations", at = c("missense_variant", "frameshift_variant", "disruptive_inframe_deletion", 
+                                                                     "stop_gained", "splice_donor_variant", "splice_acceptor_variant", "disruptive_inframe_insertion", "inframe_deletion"), 
+                                      labels = c("missense_variant", "frameshift_variant", "disruptive_inframe_deletion", 
+                                                 "stop_gained", "splice_donor_variant", "splice_acceptor_variant", "disruptive_inframe_insertion", "inframe_deletion")
+          ))
+          
+#################################################################################################################################
+# This code below will analyze mutational signature and generate plots (Figure 1c, Supplementary Figure 1b)
+rm(list=ls())
+if (!requireNamespace("BiocManager", quietly = TRUE))
+BiocManager::install("MutationalPatterns")
+library("MutationalPatterns")
+library(BSgenome)
+head(available.genomes())
+ref_genome <- "BSgenome.Hsapiens.UCSC.hg19"
+library(ref_genome, character.only = TRUE)
+
+vcf_dir <- c('F://TOTALVCF/Braintumor')
+vcf_files <- list.files(vcf_dir, pattern = ".vcf", full.names = TRUE)
+
+muts = mutations_from_vcf(vcfs[[1]])
+head(muts, 12)
+types = mut_type(vcfs[[1]])
+head(types, 12)
+context = mut_context(vcfs[[1]], ref_genome)
+head(context, 12)
+type_context = type_context(vcfs[[1]], ref_genome)
+lapply(type_context, head, 12)
+type_occurrences <- mut_type_occurrences(vcfs, ref_genome)
+
+p1 <- plot_spectrum(type_occurrences)
+p2 <- plot_spectrum(type_occurrences, CT = TRUE)
+p3 <- plot_spectrum(type_occurrences, CT = TRUE, legend = FALSE)
+library("gridExtra")
+grid.arrange(p1, p2, p3, ncol=3, widths=c(3,3,1.75))
+
+mut_mat <- mut_matrix(vcf_list = vcfs, ref_genome = ref_genome)
+head(mut_mat)
+plot_96_profile(mut_mat)
+
+mut_mat <- mut_mat + 0.0001
+plot_96_profile(nmf_res$signatures, condensed = TRUE)
+pc1 <- plot_contribution(nmf_res$contribution, nmf_res$signature, mode = "relative")
+pc2 <- plot_contribution(nmf_res$contribution, nmf_res$signature, mode = "absolute")
+grid.arrange(pc1, pc2)
+plot_contribution(nmf_res$contribution, nmf_res$signature, mode = "absolute", coord_flip = TRUE)
+
